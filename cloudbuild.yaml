@@ -1,0 +1,4 @@
+steps:
+  - name: "gcr.io/cloud-builders/gcloud"
+    args: ["app", "deploy", "--image-url=[HOSTNAME]/[PROJECT-ID]/[IMAGE]"]
+timeout: "1600s"
