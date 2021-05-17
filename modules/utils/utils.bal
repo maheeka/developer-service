@@ -1,4 +1,6 @@
+import ballerina/http;
 import ballerina/regex;
+import developer_service.model;
 
 public function getDeveloperSearchQuery(string? name, string? team) returns map<json> {
     map<json> searchQuery = {};
@@ -39,4 +41,20 @@ public function hasNext(int totalCount, int foundCount, int? page, int? pageSize
     } else {
         return false;
     }
+}
+
+public function wrapError(error e) returns model:Error {
+    model:Error err = {
+        errorType: "Internal Server Error",
+        message: e.message()
+    };
+    return err;
+}
+
+public function getErrorHttpResponse(model:Error err) returns http:Response {
+    http:Response errorResponse = new;
+    errorResponse.statusCode = http:STATUS_INTERNAL_SERVER_ERROR;
+    errorResponse.setPayload(err.toJson());
+    error? e = errorResponse.setContentType("application/json");
+    return errorResponse;
 }

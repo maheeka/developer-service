@@ -1,6 +1,7 @@
 import ballerina/http;
 import developer_service.model;
 import developer_service.dbservice;
+import developer_service.utils;
 
 configurable int port = ?;
 
@@ -11,13 +12,17 @@ service /api/v1 on new http:Listener(port) {
     }
 
     resource function post developers(@http:Payload{} model:Developer payload) 
-            returns record {| readonly http:StatusCreated status; model:Developer body; |}|model:Error {
-        model:Developer createdDeveloper = dbservice:createDeveloper(payload);
-        record {|
-            readonly http:StatusCreated status = new;
-            model:Developer body; 
-        |} response = {body: createdDeveloper};
-        return response;
+            returns record {| readonly http:StatusCreated status; model:Developer body; |}| http:Response {
+        model:Developer|model:Error createdDeveloper = dbservice:createDeveloper(payload);
+        if (createdDeveloper is model:Developer) {
+            record {|
+                readonly http:StatusCreated status = new;
+                model:Developer body; 
+            |} response = {body: createdDeveloper};
+            return response;
+        } else {
+            return utils:getErrorHttpResponse(createdDeveloper);
+        }
     }
 
     resource function get developers/[string developerId]() returns string|model:Error {

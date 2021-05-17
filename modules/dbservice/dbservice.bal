@@ -75,7 +75,7 @@ public function getDevelopers(string? name, string? team, int? page, int? pageSi
 #
 # + developer - developer
 # + return - created developer with created timestamp and id
-public function createDeveloper(model:Developer developer) returns model:Developer { // TODO |error
+public function createDeveloper(model:Developer developer) returns model:Developer|model:Error {
     map<json> developerJson = developer;
 
     string createdAt = time:utcToString(time:utcNow());
@@ -83,8 +83,10 @@ public function createDeveloper(model:Developer developer) returns model:Develop
     developerJson["createdAt"] = createdAt;
     developerJson["updatedAt"] = createdAt;
     mongodb:Client mongoClient = checkpanic new (mongoConfig, mongodb.dbName);
-    checkpanic mongoClient->insert(developerJson, mongodb.collection);
-
+    mongodb:DatabaseError|mongodb:ApplicationError|()|error dbResult = trap mongoClient->insert(developerJson, mongodb.collection);
+    if dbResult is error {
+        return utils:wrapError(dbResult);
+    }
     mongoClient->close();
 
     model:Developer|error createdDeveloper = developerJson.cloneWithType(model:Developer);
