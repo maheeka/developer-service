@@ -1,0 +1,14 @@
+[developer_service]
+port = 8085
+
+[developer_service.dbservice.mongodb]
+host = "localhost"
+port = 27017
+username = "api_user"
+password = "api1234"
+authSource = "developer_db"
+dbName = "developer_db"
+collection = "developers"
+
+[ballerina.log]
+level = "DEBUG"
