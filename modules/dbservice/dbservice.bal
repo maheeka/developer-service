@@ -29,7 +29,7 @@ mongodb:ClientConfig mongoConfig = {
     }
 };
 
-public function getDevelopers(string? name, string? team, int? page, int? pageSize, string? sort) returns model:Developers|model:Error {
+public function getDevelopers(string? name, string? team, int? page, int? pageSize, string? sort) returns model:Developers|error {
     log:printDebug("Looking for developers..");
 
     map<json> searchQuery = utils:getDeveloperSearchQuery(name, team);
@@ -38,14 +38,14 @@ public function getDevelopers(string? name, string? team, int? page, int? pageSi
     log:printDebug("Search query : " + searchQuery.toJsonString());
     log:printDebug("Sort query : " + sortQuery.toJsonString());
 
-    mongodb:Client mongoClient = checkpanic new (mongoConfig, mongodb.dbName);
-    int totalCount = checkpanic mongoClient->countDocuments(mongodb.collection, (), searchQuery);
+    mongodb:Client mongoClient = check new (mongoConfig, mongodb.dbName);
+    int totalCount = check mongoClient->countDocuments(mongodb.collection, (), searchQuery);
     map<json>[] jsonDevelopers;
 
     if (pageSize is int) {
-        jsonDevelopers = checkpanic mongoClient->find(mongodb.collection, (), searchQuery, sortQuery, <int>pageSize);
+        jsonDevelopers = check mongoClient->find(mongodb.collection, (), searchQuery, sortQuery, <int>pageSize);
     } else {
-        jsonDevelopers = checkpanic mongoClient->find(mongodb.collection, (), searchQuery, sortQuery);
+        jsonDevelopers = check mongoClient->find(mongodb.collection, (), searchQuery, sortQuery);
     }
     mongoClient->close();
 
@@ -74,37 +74,27 @@ public function getDevelopers(string? name, string? team, int? page, int? pageSi
 #
 # + developer - developer
 # + return - created developer with created timestamp and id
-public function createDeveloper(model:Developer developer) returns model:Developer|model:Error {
+public function createDeveloper(model:Developer developer) returns model:Developer|error {
     map<json> developerJson = developer;
 
     string createdAt = time:utcToString(time:utcNow());
     developerJson["id"] = uuid:createType1AsString();
     developerJson["createdAt"] = createdAt;
     developerJson["updatedAt"] = createdAt;
+    
     mongodb:Client mongoClient = checkpanic new (mongoConfig, mongodb.dbName);
-    mongodb:DatabaseError|mongodb:ApplicationError|()|error dbResult = trap mongoClient->insert(developerJson, mongodb.collection);
-    if dbResult is error {
-        return utils:wrapError(model:InternalServerError, dbResult);
-    }
+    check mongoClient->insert(developerJson, mongodb.collection);
     mongoClient->close();
 
     model:Developer|error createdDeveloper = developerJson.cloneWithType(model:Developer);
-    if (createdDeveloper is model:Developer) {
-        return createdDeveloper;
-    } else {
-        model:Error err = {
-            errorType: model:InternalServerError,
-            message: "Could not process search results"
-        };
-        return err;
-    }
+    return createdDeveloper;
 }
 
-public function getDeveloper(string developerId) returns model:Developers|model:Error { // TODO |error
-    mongodb:Client mongoClient = checkpanic new (mongoConfig, mongodb.dbName);
+public function getDeveloper(string developerId) returns model:Developers|model:Error|error {
+    mongodb:Client mongoClient = check new (mongoConfig, mongodb.dbName);
 
     map<json> searchQuery = {"id": developerId};
-    map<json>[] searchResults = checkpanic mongoClient->find(mongodb.collection, (), searchQuery);
+    map<json>[] searchResults = check mongoClient->find(mongodb.collection, (), searchQuery);
     mongoClient->close();
 
     if (searchResults.length() == 0) {
@@ -128,39 +118,42 @@ public function getDeveloper(string developerId) returns model:Developers|model:
     }
 }
 
-public function deleteDeveloper(string developerId) returns boolean|model:Error {
-    mongodb:Client mongoClient = checkpanic new (mongoConfig, mongodb.dbName);
+public function deleteDeveloper(string developerId) returns boolean|model:Error|error {
+    mongodb:Client mongoClient = check new (mongoConfig, mongodb.dbName);
 
     map<json> deleteQuery = {"id": developerId};
-    int deleteResults = checkpanic mongoClient->delete(mongodb.collection, (), deleteQuery);
+    int deleteResults = check mongoClient->delete(mongodb.collection, (), deleteQuery);
     mongoClient->close();
     if (deleteResults > 0) {
         return true;
     } else {
-        model:Error err = {errorType: model:NotFound};
+        model:Error err = {
+            errorType: model:NotFound,
+            message: "Developer not found"
+        };
         return err;
     }
 }
 
-public function patchDeveloper(string developerId, model:Developer developer) returns model:Developer|model:Error {
-    mongodb:Client mongoClient = checkpanic new (mongoConfig, mongodb.dbName);
+public function patchDeveloper(string developerId, model:Developer developer) returns model:Developer|model:Error|error {
+    mongodb:Client mongoClient = check new (mongoConfig, mongodb.dbName);
 
     map<json> updateQuery = {"id": developerId};
 
-    model:Developer|model:Error existingCustomer = getDeveloper(developerId);
+    model:Developer|model:Error existingCustomer = check getDeveloper(developerId);
     if (existingCustomer is model:Developer) {
         map<json> newDeveloperJson = developer;
         newDeveloperJson["updatedAt"] = time:utcToString(time:utcNow());
         newDeveloperJson["createdAt"] = existingCustomer["createdAt"];
         newDeveloperJson["id"] = developerId;
 
-        int updatedCount = checkpanic mongoClient->update(newDeveloperJson, mongodb.collection, (), updateQuery, false);
+        int updatedCount = check mongoClient->update(newDeveloperJson, mongodb.collection, (), updateQuery, false);
         mongoClient->close();
 
         if (updatedCount > 0) {
-            log:printInfo("Modified count with another filter: '" + updatedCount.toString() + "'.");
+            log:printInfo("Modified count with update filter: '" + updatedCount.toString() + "'.");
         } else {
-            log:printInfo("Nothing modified with another filter."); //TODO: update logs
+            log:printInfo("Nothing modified with update filter."); 
         }
         return developer;
     } else {

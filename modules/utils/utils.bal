@@ -51,16 +51,25 @@ public function wrapError(model:ErrorType errorType, error e) returns model:Erro
     return err;
 }
 
-public function getErrorHttpResponse(model:Error err) returns http:Response {
+public function getErrorHttpResponse(model:Error|error err) returns http:Response {
     http:Response errorResponse = new;
-    if (err["errorType"] == model:NotFound) {
-        errorResponse.statusCode = http:STATUS_NOT_FOUND;
-    } else if (err["errorType"] == model:BadRequest) {
-        errorResponse.statusCode = http:STATUS_BAD_REQUEST;
+    if (err is model:Error) {
+        if (err["errorType"] == model:NotFound) {
+            errorResponse.statusCode = http:STATUS_NOT_FOUND;
+        } else if (err["errorType"] == model:BadRequest) {
+            errorResponse.statusCode = http:STATUS_BAD_REQUEST;
+        } else {
+            errorResponse.statusCode = http:STATUS_INTERNAL_SERVER_ERROR;
+        } 
+        errorResponse.setPayload(err.toJson());
     } else {
         errorResponse.statusCode = http:STATUS_INTERNAL_SERVER_ERROR;
-    } 
-    errorResponse.setPayload(err.toJson());
+        model:Error e = {
+            errorType: model:InternalServerError,
+            message: err.message()
+        };
+        errorResponse.setPayload(e.toJson());
+    }
     error? e = errorResponse.setContentType("application/json");
     return errorResponse;
 }
