@@ -29,7 +29,7 @@ mongodb:ClientConfig mongoConfig = {
     }
 };
 
-public function getDevelopers(string? name, string? team, int? page, int? pageSize, string? sort) returns model:Developers { // TODO |error
+public function getDevelopers(string? name, string? team, int? page, int? pageSize, string? sort) returns model:Developers|model:Error {
     log:printDebug("Looking for developers..");
 
     map<json> searchQuery = utils:getDeveloperSearchQuery(name, team);
@@ -39,7 +39,6 @@ public function getDevelopers(string? name, string? team, int? page, int? pageSi
     log:printDebug("Sort query : " + sortQuery.toJsonString());
 
     mongodb:Client mongoClient = checkpanic new (mongoConfig, mongodb.dbName);
-
     int totalCount = checkpanic mongoClient->countDocuments(mongodb.collection, (), searchQuery);
     map<json>[] jsonDevelopers;
 
@@ -85,41 +84,46 @@ public function createDeveloper(model:Developer developer) returns model:Develop
     mongodb:Client mongoClient = checkpanic new (mongoConfig, mongodb.dbName);
     mongodb:DatabaseError|mongodb:ApplicationError|()|error dbResult = trap mongoClient->insert(developerJson, mongodb.collection);
     if dbResult is error {
-        return utils:wrapError(dbResult);
+        return utils:wrapError(model:InternalServerError, dbResult);
     }
     mongoClient->close();
 
     model:Developer|error createdDeveloper = developerJson.cloneWithType(model:Developer);
     if (createdDeveloper is model:Developer) {
         return createdDeveloper;
+    } else {
+        model:Error err = {
+            errorType: model:InternalServerError,
+            message: "Could not process search results"
+        };
+        return err;
     }
-    model:Developer emptyDev = {name: "x"}; // TODO: hanndle error return model:Error?
-    return emptyDev;
 }
 
 public function getDeveloper(string developerId) returns model:Developers|model:Error { // TODO |error
-    mongodb:Client mongoClient = checkpanic new (
-    mongoConfig, mongodb.dbName);
+    mongodb:Client mongoClient = checkpanic new (mongoConfig, mongodb.dbName);
 
     map<json> searchQuery = {"id": developerId};
     map<json>[] searchResults = checkpanic mongoClient->find(mongodb.collection, (), searchQuery);
     mongoClient->close();
 
     if (searchResults.length() == 0) {
-        model:Error err = {errorType: "Not Found" //return 404
-};
+        model:Error err = {
+            errorType: model:NotFound,
+            message: "Developer not found"
+        };
         return err;
     }
     map<json> devJson = searchResults[0];
     json id = devJson.remove("_id");
 
-    log:printDebug("Found developer by id ");
+    log:printDebug("Found developer by id " + id.toJsonString());
 
     model:Developer|error dev = devJson.fromJsonWithType(model:Developer);
     if (dev is model:Developer) {
         return dev;
     } else {
-        model:Error err = {errorType: "Error"};
+        model:Error err = {errorType: model:InternalServerError};
         return err;
     }
 }
@@ -133,7 +137,7 @@ public function deleteDeveloper(string developerId) returns boolean|model:Error 
     if (deleteResults > 0) {
         return true;
     } else {
-        model:Error err = {errorType: "Not Found"};
+        model:Error err = {errorType: model:NotFound};
         return err;
     }
 }

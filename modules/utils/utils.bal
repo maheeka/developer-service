@@ -14,7 +14,7 @@ public function getDeveloperSearchQuery(string? name, string? team) returns map<
 }
 
 public function getDeveloperSortQuery(string? sort) returns map<json> {
-    map<json> sortQuery = {};  
+    map<json> sortQuery = {};
     if (sort != null) {
         string[] sortList = regex:split(<string>sort, ","); //TODO:  handle error   
         foreach string sortByItem in sortList {
@@ -43,9 +43,9 @@ public function hasNext(int totalCount, int foundCount, int? page, int? pageSize
     }
 }
 
-public function wrapError(error e) returns model:Error {
+public function wrapError(model:ErrorType errorType, error e) returns model:Error {
     model:Error err = {
-        errorType: "Internal Server Error",
+        errorType: errorType,
         message: e.message()
     };
     return err;
@@ -53,7 +53,13 @@ public function wrapError(error e) returns model:Error {
 
 public function getErrorHttpResponse(model:Error err) returns http:Response {
     http:Response errorResponse = new;
-    errorResponse.statusCode = http:STATUS_INTERNAL_SERVER_ERROR;
+    if (err["errorType"] == model:NotFound) {
+        errorResponse.statusCode = http:STATUS_NOT_FOUND;
+    } else if (err["errorType"] == model:BadRequest) {
+        errorResponse.statusCode = http:STATUS_BAD_REQUEST;
+    } else {
+        errorResponse.statusCode = http:STATUS_INTERNAL_SERVER_ERROR;
+    } 
     errorResponse.setPayload(err.toJson());
     error? e = errorResponse.setContentType("application/json");
     return errorResponse;
